@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -24,7 +23,7 @@ import (
 )
 
 const (
-	syncByte = uint8(71) //0x47
+	syncByte = uint8(71) // 0x47
 	// TSExtension ...
 	TSExtension = ".ts"
 )
@@ -67,8 +66,8 @@ type GetPlayInfoResponse struct {
 	PlayInfoList vod.PlayInfoListInGetPlayInfo `json:"PlayInfoList" xml:"PlayInfoList"`
 }
 
-// DownloadArticleVideo download normal video cource ...
-// sourceType: normal video cource 1
+// DownloadArticleVideo download normal video course ...
+// sourceType: normal video course 1
 func DownloadArticleVideo(ctx context.Context,
 	articleID int,
 	sourceType int,
@@ -76,7 +75,6 @@ func DownloadArticleVideo(ctx context.Context,
 	quality string,
 	concurrency int,
 ) error {
-
 	articleInfo, err := geektime.PostV3ArticleInfo(articleID)
 	if err != nil {
 		return err
@@ -254,7 +252,7 @@ func writeToTempVideoFile(ctx context.Context,
 }
 
 func mergeTSFiles(tempVideoDir, filenamifyTitle, projectDir string, key []byte, videoEncryptType EncryptType) error {
-	tempTSFiles, err := ioutil.ReadDir(tempVideoDir)
+	tempTSFiles, err := os.ReadDir(tempVideoDir)
 	if err != nil {
 		return err
 	}
@@ -267,7 +265,7 @@ func mergeTSFiles(tempVideoDir, filenamifyTitle, projectDir string, key []byte, 
 		return err
 	}
 	for _, tempTSFile := range tempTSFiles {
-		f, err := ioutil.ReadFile(filepath.Join(tempVideoDir, tempTSFile.Name()))
+		f, err := os.ReadFile(filepath.Join(tempVideoDir, tempTSFile.Name()))
 		if err != nil {
 			return err
 		}
@@ -313,9 +311,11 @@ func addBarValue(bar *pb.ProgressBar, written int64) {
 }
 
 func getUniversityVideoTitle(articleID int, currentProduct geektime.Product) string {
-	for _, v := range currentProduct.Articles {
-		if v.AID == articleID {
-			return v.Title
+	for _, l := range currentProduct.Lessons {
+		for _, a := range l.Articles {
+			if a.ArticleID == articleID {
+				return a.ArticleTitle
+			}
 		}
 	}
 	return ""

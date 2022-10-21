@@ -39,7 +39,7 @@ func checkError(err error) {
 			exitWithMsg("请求超时")
 		} else {
 			logger.Error(err, "An error occurred")
-			fmt.Fprintf(os.Stderr, "An error occurred: %v\n", err.Error())
+			fmt.Fprintf(os.Stderr, "\nAn error occurred: %v\n", err.Error())
 			os.Exit(1)
 		}
 	}

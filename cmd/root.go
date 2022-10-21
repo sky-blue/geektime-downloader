@@ -318,9 +318,7 @@ func handleDownloadAll(ctx context.Context) {
 	downloaded, err := findDownloadedArticleFileNames(projectDir)
 	checkError(err)
 	if isText() {
-		rand.Seed(time.Now().UnixNano())
 		fmt.Printf("正在下载专栏 《%s》 中的所有文章\n", currentProduct.Title)
-		total := len(currentProduct.Articles)
 		var i int
 
 		var chromedpCtx context.Context
@@ -334,99 +332,162 @@ func handleDownloadAll(ctx context.Context) {
 			defer cancel()
 		}
 
-		for _, a := range currentProduct.Articles {
-			fileName := filenamify.Filenamify(a.Title)
-			var b int
-			if _, exists := downloaded[fileName+pdf.PDFExtension]; exists {
-				b = setBit(b, 0)
-			}
-			if _, exists := downloaded[fileName+markdown.MDExtension]; exists {
-				b = setBit(b, 1)
-			}
-			if _, exists := downloaded[fileName+audio.MP3Extension]; exists {
-				b = setBit(b, 2)
-			}
+		for _, l := range currentProduct.Lessons {
+			prompt(currentProduct.Total, i)
+			fmt.Printf("\t%s\n", l.ChapterName)
 
-			if b == columnOutputType {
-				increasePDFCount(total, &i)
-				continue
-			}
-
-			var err error
-
-			if columnOutputType&^b&1 == 1 {
-				err = pdf.PrintArticlePageToPDF(chromedpCtx,
-					a.AID,
-					projectDir,
-					a.Title,
-					geektime.SiteCookies,
-					downloadComments,
-				)
-				if err != nil {
-					// ensure chrome killed before os exit
-					cancel()
-					checkError(err)
-				}
-			}
-
-			var articleInfo response.V1ArticleResponse
-			needDownloadMD := (columnOutputType>>1)&^(b>>1)&1 == 1
-			needDownloadAudio := (columnOutputType>>2)&^(b>>2)&1 == 1
-
-			if needDownloadMD || needDownloadAudio {
-				articleInfo, err = geektime.GetArticleInfo(a.AID)
-				checkError(err)
-			}
-
-			if needDownloadMD {
-				err = markdown.Download(ctx, articleInfo.Data.ArticleContent, a.Title, projectDir, a.AID, concurrency)
-			}
-
-			if needDownloadAudio {
-				err = audio.DownloadAudio(ctx, articleInfo.Data.AudioDownloadURL, projectDir, a.Title)
-			}
-
+			chapterName := filenamify.Filenamify(strconv.Itoa(l.IndexNo) + "." + l.ChapterName)
+			chapterDir := filepath.Join(projectDir, chapterName)
+			err := os.MkdirAll(chapterDir, os.ModePerm)
 			checkError(err)
 
-			increasePDFCount(total, &i)
-			r := rand.Intn(2000)
-			time.Sleep(time.Duration(r) * time.Millisecond)
+			for _, a := range l.Articles {
+				i++
+				prompt(currentProduct.Total, i)
+				fmt.Printf("\t\t%s\n", a.ArticleTitle)
+
+				articleTitle := filenamify.Filenamify(a.ArticleTitle)
+				var b int
+				if _, exists := downloaded[chapterName][articleTitle+pdf.PDFExtension]; exists {
+					b = setBit(b, 0)
+				}
+				if _, exists := downloaded[chapterName][articleTitle+markdown.MDExtension]; exists {
+					b = setBit(b, 1)
+				}
+				if _, exists := downloaded[chapterName][articleTitle+audio.MP3Extension]; exists {
+					b = setBit(b, 2)
+				}
+
+				if b == columnOutputType {
+					continue
+				}
+
+				var err error
+
+				if columnOutputType&^b&1 == 1 {
+					err = pdf.PrintArticlePageToPDF(chromedpCtx,
+						a.ArticleID,
+						chapterDir,
+						articleTitle,
+						geektime.SiteCookies,
+						downloadComments,
+					)
+					if err != nil {
+						// ensure chrome killed before os exit
+						cancel()
+						checkError(err)
+					}
+				}
+
+				var articleInfo response.V1ArticleResponse
+				needDownloadMD := (columnOutputType>>1)&^(b>>1)&1 == 1
+				needDownloadAudio := (columnOutputType>>2)&^(b>>2)&1 == 1
+
+				if needDownloadMD || needDownloadAudio {
+					articleInfo, err = geektime.GetArticleInfo(a.ArticleID)
+					checkError(err)
+				}
+
+				if needDownloadMD {
+					err = markdown.Download(ctx, articleInfo.Data.ArticleContent, articleTitle, chapterDir, a.ArticleID, concurrency)
+				}
+
+				if needDownloadAudio {
+					err = audio.DownloadAudio(ctx, articleInfo.Data.AudioDownloadURL, chapterDir, articleTitle)
+				}
+
+				checkError(err)
+				time.Sleep(time.Duration(rand.Intn(2000)) * time.Millisecond)
+			}
 		}
 	} else if isVideo() {
-		for _, a := range currentProduct.Articles {
-			fileName := filenamify.Filenamify(a.Title) + video.TSExtension
-			if _, ok := downloaded[fileName]; ok {
-				continue
-			}
-			if sourceType == 1 {
-				err := video.DownloadArticleVideo(ctx, a.AID, sourceType, projectDir, quality, concurrency)
-				checkError(err)
-			} else if sourceType == 5 {
-				err := video.DownloadUniversityVideo(ctx, a.AID, currentProduct, projectDir, quality, concurrency)
-				checkError(err)
+		var i int
+		for _, l := range currentProduct.Lessons {
+			prompt(currentProduct.Total, i)
+			fmt.Printf("\t%s\n", l.ChapterName)
+
+			chapterName := filenamify.Filenamify(strconv.Itoa(l.IndexNo) + "." + l.ChapterName)
+			chapterDir := filepath.Join(projectDir, chapterName)
+			err := os.MkdirAll(chapterDir, os.ModePerm)
+			checkError(err)
+
+			for _, a := range l.Articles {
+				i++
+				prompt(currentProduct.Total, i)
+
+				articleTitle := filenamify.Filenamify(a.ArticleTitle) + video.TSExtension
+				if _, ok := downloaded[chapterName][articleTitle]; ok {
+					continue
+				}
+				if sourceType == 1 {
+					err := video.DownloadArticleVideo(ctx, a.ArticleID, sourceType, chapterDir, quality, concurrency)
+					checkError(err)
+				} else if sourceType == 5 {
+					if a.VideoTime <= 0 {
+						continue
+					}
+					err := video.DownloadUniversityVideo(ctx, a.ArticleID, currentProduct, chapterDir, quality, concurrency)
+					checkError(err)
+				}
 			}
 		}
 	}
 	selectProductType(ctx)
 }
 
-func increasePDFCount(total int, i *int) {
-	(*i)++
-	fmt.Printf("\r已完成下载%d/%d", *i, total)
+func prompt(total int, i int) {
+	fmt.Printf("\r[%s] 正在下载 %d/%d", time.Now().Format("2006-01-02 15:04:05"), i, total)
 }
 
 func loadArticles() {
-	if len(currentProduct.Articles) <= 0 {
-		sp.Prefix = "[ 正在加载文章列表... ]"
-		sp.Start()
-		articles, err := geektime.PostV1ColumnArticles(strconv.Itoa(currentProduct.ID))
-		checkError(err)
-		currentProduct.Articles = articles
-		sp.Stop()
+	if len(currentProduct.Articles) > 0 {
+		return
 	}
+
+	sp.Prefix = "[ 正在加载文章列表... ]"
+	sp.Start()
+	articles, err := geektime.PostV1ColumnArticles(strconv.Itoa(currentProduct.ID))
+	checkError(err)
+	currentProduct.Articles = articles
+	currentProduct.Total = len(articles)
+
+	// 上面的接口查出的 Article 列表，是没有按 Chapter 组织的，虽然包含 ChapterID，但是没有 ChapterName
+	// 由于没有直接查询 Chapter 信息的接口，而下面查询 Article 详情的接口，包含 ChapterName，故以此间接实现按 Chapter 组织 Article 列表
+	for _, article := range articles {
+		a, err := geektime.PostV3ArticleInfo(article.AID)
+		checkError(err)
+
+		if len(currentProduct.Lessons) == 0 ||
+			currentProduct.Lessons[len(currentProduct.Lessons)-1].ChapterID != a.Data.Info.ChapterID {
+			currentProduct.Lessons = append(currentProduct.Lessons,
+				response.Lesson{
+					ChapterName: a.Data.Info.ChapterTitle,
+					ChapterID:   a.Data.Info.ChapterID,
+					IndexNo:     len(currentProduct.Lessons) + 1,
+				})
+		}
+
+		lesson := &currentProduct.Lessons[len(currentProduct.Lessons)-1]
+		lesson.Articles = append(lesson.Articles,
+			response.Article{
+				ArticleID:    a.Data.Info.ID,
+				ArticleTitle: a.Data.Info.Title,
+				IndexNo:      len(lesson.Articles) + 1,
+			})
+	}
+
+	sp.Stop()
 }
 
 func downloadArticle(ctx context.Context, article geektime.Article, projectDir string) {
+	l, err := getLesson(article.AID)
+	checkError(err)
+
+	chapterName := filenamify.Filenamify(strconv.Itoa(l.IndexNo) + "." + l.ChapterName)
+	chapterDir := filepath.Join(projectDir, chapterName)
+	err = os.MkdirAll(chapterDir, os.ModePerm)
+	checkError(err)
+
 	if isText() {
 		sp.Prefix = fmt.Sprintf("[ 正在下载 《%s》... ]", article.Title)
 		sp.Start()
@@ -439,7 +500,7 @@ func downloadArticle(ctx context.Context, article geektime.Article, projectDir s
 			defer cancel()
 			err = pdf.PrintArticlePageToPDF(chromedpCtx,
 				article.AID,
-				projectDir,
+				chapterDir,
 				article.Title,
 				geektime.SiteCookies,
 				downloadComments,
@@ -463,11 +524,11 @@ func downloadArticle(ctx context.Context, article geektime.Article, projectDir s
 		}
 
 		if needDownloadMD {
-			err = markdown.Download(ctx, articleInfo.Data.ArticleContent, article.Title, projectDir, article.AID, concurrency)
+			err = markdown.Download(ctx, articleInfo.Data.ArticleContent, article.Title, chapterDir, article.AID, concurrency)
 		}
 
 		if needDownloadAudio {
-			err = audio.DownloadAudio(ctx, articleInfo.Data.AudioDownloadURL, projectDir, article.Title)
+			err = audio.DownloadAudio(ctx, articleInfo.Data.AudioDownloadURL, chapterDir, article.Title)
 		}
 
 		checkError(err)
@@ -475,13 +536,24 @@ func downloadArticle(ctx context.Context, article geektime.Article, projectDir s
 		sp.Stop()
 	} else if isVideo() {
 		if sourceType == 1 {
-			err := video.DownloadArticleVideo(ctx, article.AID, sourceType, projectDir, quality, concurrency)
+			err := video.DownloadArticleVideo(ctx, article.AID, sourceType, chapterDir, quality, concurrency)
 			checkError(err)
 		} else if sourceType == 5 {
-			err := video.DownloadUniversityVideo(ctx, article.AID, currentProduct, projectDir, quality, concurrency)
+			err := video.DownloadUniversityVideo(ctx, article.AID, currentProduct, chapterDir, quality, concurrency)
 			checkError(err)
 		}
 	}
+}
+
+func getLesson(aid int) (*response.Lesson, error) {
+	for i := range currentProduct.Lessons {
+		for _, a := range currentProduct.Lessons[i].Articles {
+			if a.ArticleID == aid {
+				return &currentProduct.Lessons[i], nil
+			}
+		}
+	}
+	return nil, errors.New("not found")
 }
 
 func isText() bool {
@@ -497,7 +569,7 @@ func isVideo() bool {
 
 // Sets the bit at pos in the integer n.
 func setBit(n int, pos uint) int {
-	n |= (1 << pos)
+	n |= 1 << pos
 	return n
 }
 
@@ -521,9 +593,9 @@ func readCookiesFromInput() []*http.Cookie {
 	return cookies
 }
 
-func findDownloadedArticleFileNames(projectDir string) (map[string]struct{}, error) {
+func findDownloadedArticleFileNames(projectDir string) (map[string]map[string]struct{}, error) {
 	files, err := os.ReadDir(projectDir)
-	res := make(map[string]struct{}, len(files))
+	res := make(map[string]map[string]struct{}, len(files))
 	if err != nil {
 		return res, err
 	}
@@ -531,7 +603,16 @@ func findDownloadedArticleFileNames(projectDir string) (map[string]struct{}, err
 		return res, nil
 	}
 	for _, f := range files {
-		res[f.Name()] = struct{}{}
+		res[f.Name()] = make(map[string]struct{})
+		if f.IsDir() {
+			subFiles, err := os.ReadDir(filepath.Join(projectDir, f.Name()))
+			if err != nil {
+				return res, err
+			}
+			for _, subFile := range subFiles {
+				res[f.Name()][subFile.Name()] = struct{}{}
+			}
+		}
 	}
 	return res, nil
 }

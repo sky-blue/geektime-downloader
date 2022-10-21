@@ -44,7 +44,7 @@ var (
 
 // ErrGeekTimeAPIBadCode ...
 type ErrGeekTimeAPIBadCode struct {
-	Path string
+	Path           string
 	ResponseString string
 }
 
@@ -60,6 +60,8 @@ type Product struct {
 	Title    string
 	Type     string
 	Articles []Article
+	Lessons  []response.Lesson
+	Total    int
 }
 
 // Article ...
@@ -68,7 +70,7 @@ type Article struct {
 	Title string
 }
 
-// InitClient init golbal clients with cookies
+// InitClient init global clients with cookies
 func InitClient(cookies []*http.Cookie) {
 	geekTimeClient = resty.New().
 		SetBaseURL(pgt.GeekBang).
@@ -119,7 +121,7 @@ func PostV1ColumnArticles(cid string) ([]Article, error) {
 			"order":  "earliest",
 			"prev":   0,
 			"sample": false,
-			"size":   500, //get all articles
+			"size":   500, // get all articles
 		})
 
 	if err != nil {
@@ -177,12 +179,14 @@ func GetMyClassProduct(classID int) (Product, error) {
 	}
 
 	p = Product{
-		Access: true,
-		ID:     classID,
-		Title:  result.Data.Title,
-		Type:   string(ProductTypeUniversityVideo),
+		Access:  true,
+		ID:      classID,
+		Title:   result.Data.Title,
+		Type:    string(ProductTypeUniversityVideo),
+		Lessons: result.Data.Lessons,
 	}
 	var articles []Article
+	total := 0
 	for _, lesson := range result.Data.Lessons {
 		for _, article := range lesson.Articles {
 			// ONLY download university video lessons
@@ -191,10 +195,12 @@ func GetMyClassProduct(classID int) (Product, error) {
 					AID:   article.ArticleID,
 					Title: article.ArticleTitle,
 				})
+				total++
 			}
 		}
 	}
 	p.Articles = articles
+	p.Total = total
 
 	return p, nil
 }

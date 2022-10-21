@@ -5,14 +5,14 @@ type V3ArticleInfoResponse struct {
 	Code int `json:"code"`
 	Data struct {
 		Info struct {
-			ID           int    `json:"id"`
-			Type         int    `json:"type"`
+			ID   int `json:"id"`
+			Type int `json:"type"`
 			// Pid          int    `json:"pid"`
-			// ChapterID    int    `json:"chapter_id"`
-			// ChapterTitle string `json:"chapter_title"`
+			ChapterID    int    `json:"chapter_id"`
+			ChapterTitle string `json:"chapter_title"`
 			Title        string `json:"title"`
 			// Subtitle     string `json:"subtitle"`
-			// ShareTitle   string `json:"share_title"`
+			ShareTitle string `json:"share_title"`
 			// Summary      string `json:"summary"`
 			// Ctime        int    `json:"ctime"`
 			// Cover        struct {
@@ -33,7 +33,7 @@ type V3ArticleInfoResponse struct {
 			// 	URL         string   `json:"url"`
 			// } `json:"audio"`
 			Video struct {
-				ID       string `json:"id"`
+				ID string `json:"id"`
 				// Duration int    `json:"duration"`
 				// Cover    string `json:"cover"`
 				// Width    int    `json:"width"`
@@ -95,13 +95,13 @@ type V3ArticleInfoResponse struct {
 			// 	} `json:"footer_cover_data"`
 			// } `json:"extra"`
 			// Score           int    `json:"score"`
-			IsVideo         bool   `json:"is_video"`
+			IsVideo bool `json:"is_video"`
 			// PosterWxlite    string `json:"poster_wxlite"`
 			// HadFreelyread   bool   `json:"had_freelyread"`
 			// FloatQrcode     string `json:"float_qrcode"`
 			// FloatAppQrcode  string `json:"float_app_qrcode"`
 			// FloatQrcodeJump string `json:"float_qrcode_jump"`
-			InPvip          int    `json:"in_pvip"`
+			InPvip int `json:"in_pvip"`
 			// CommentCount    int    `json:"comment_count"`
 			// Cshort          string `json:"cshort"`
 			// Like            struct {
@@ -124,7 +124,7 @@ type V3ArticleInfoResponse struct {
 			Extra struct {
 				Sub struct {
 					// HadDone    bool `json:"had_done"`
-					AccessMask int  `json:"access_mask"`
+					AccessMask int `json:"access_mask"`
 				} `json:"sub"`
 			} `json:"extra"`
 			Type string `json:"type"`
