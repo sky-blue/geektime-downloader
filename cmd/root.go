@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"math"
 	"math/rand"
 	"net/http"
@@ -41,7 +40,7 @@ var (
 	currentProduct     geektime.Product
 	quality            string
 	downloadComments   bool
-	sourceType         int //video source type
+	sourceType         int // video source type
 	columnOutputType   int
 	productTypeOptions = make([]productTypeSelectOption, 4)
 )
@@ -58,21 +57,21 @@ func init() {
 	productTypeOptions[0] = productTypeSelectOption{"普通课程", 1}
 	productTypeOptions[1] = productTypeSelectOption{"每日一课", 2}
 	productTypeOptions[2] = productTypeSelectOption{"大厂案例", 4}
-	productTypeOptions[3] = productTypeSelectOption{"训练营", 5} //custom source type, not use
+	productTypeOptions[3] = productTypeSelectOption{"训练营", 5}
 
 	rootCmd.Flags().StringVarP(&phone, "phone", "u", "", "你的极客时间账号(手机号)")
 	rootCmd.Flags().StringVar(&gcid, "gcid", "", "极客时间 cookie 值 gcid")
 	rootCmd.Flags().StringVar(&gcess, "gcess", "", "极客时间 cookie 值 gcess")
 	rootCmd.Flags().StringVarP(&downloadFolder, "folder", "f", defaultDownloadFolder, "专栏和视频课的下载目标位置")
-	rootCmd.Flags().StringVarP(&quality, "quality", "q", "sd", "下载视频清晰度(ld标清,sd高清,hd超清)")
+	rootCmd.Flags().StringVarP(&quality, "quality", "q", "sd", "下载视频清晰度(ld 标清, sd 高清, hd 超清)")
 	rootCmd.Flags().BoolVar(&downloadComments, "comments", true, "是否需要专栏的第一页评论")
-	rootCmd.Flags().IntVar(&columnOutputType, "output", 1, "专栏的输出内容(1pdf,2markdown,4audio)可自由组合")
+	rootCmd.Flags().IntVar(&columnOutputType, "output", 1, "专栏的输出内容(1 pdf, 2 markdown, 4 audio)可自由组合")
 
 	rootCmd.MarkFlagsMutuallyExclusive("phone", "gcid")
 	rootCmd.MarkFlagsMutuallyExclusive("phone", "gcess")
 	rootCmd.MarkFlagsRequiredTogether("gcid", "gcess")
 
-	sp = spinner.New(spinner.CharSets[4], 100*time.Millisecond)
+	sp = spinner.New(spinner.CharSets[4], 500*time.Millisecond)
 }
 
 var rootCmd = &cobra.Command{
@@ -486,12 +485,14 @@ func downloadArticle(ctx context.Context, article geektime.Article, projectDir s
 }
 
 func isText() bool {
-	return currentProduct.Type == string(geektime.ProductTypeColumn)
+	return currentProduct.Type == string(geektime.ProductTypeColumn) ||
+		currentProduct.Type == string(geektime.ProductTypeP29)
 }
 
 func isVideo() bool {
 	return currentProduct.Type == string(geektime.ProductTypeNormalVideo) ||
-		currentProduct.Type == string(geektime.ProductTypeUniversityVideo)
+		currentProduct.Type == string(geektime.ProductTypeUniversityVideo) ||
+		currentProduct.Type == string(geektime.ProductTypeC6Video)
 }
 
 // Sets the bit at pos in the integer n.
@@ -521,7 +522,7 @@ func readCookiesFromInput() []*http.Cookie {
 }
 
 func findDownloadedArticleFileNames(projectDir string) (map[string]struct{}, error) {
-	files, err := ioutil.ReadDir(projectDir)
+	files, err := os.ReadDir(projectDir)
 	res := make(map[string]struct{}, len(files))
 	if err != nil {
 		return res, err
@@ -552,10 +553,12 @@ func checkProductType(productType string, sourceType int) bool {
 	if (productType == string(geektime.ProductTypeDailyLesson) && sourceType == 2) ||
 		(productType == string(geektime.ProductTypeQCONPlus) && sourceType == 4) ||
 		(productType == string(geektime.ProductTypeColumn) && sourceType == 1) ||
-		(productType == string(geektime.ProductTypeNormalVideo) && sourceType == 1) {
+		(productType == string(geektime.ProductTypeNormalVideo) && sourceType == 1) ||
+		(productType == string(geektime.ProductTypeC6Video) && sourceType == 1) ||
+		(productType == string(geektime.ProductTypeP29) && sourceType == 1) {
 		return true
 	}
-	fmt.Fprint(os.Stderr, "\r输入的课程 ID 有误\n")
+	fmt.Fprintf(os.Stderr, "\n\n输入的课程 ID 有误, productType: %s, sourceType: %d\n\n", productType, sourceType)
 	return false
 }
 
@@ -570,9 +573,7 @@ func findProductTypeText(sourceType int) string {
 
 // Execute ...
 func Execute() {
-	ctx := context.Background()
-
-	ctx, cancel := context.WithCancel(ctx)
+	ctx, cancel := context.WithCancel(context.Background())
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt)
 	defer func() {
